@@ -15,7 +15,7 @@
 | 復習 | 今日復習すべき問題を 1 問ずつ表示。要点を確認して自己判定する |
 | 問題一覧 | 検索・状況での絞り込み・並べ替え、編集、削除、「今すぐ復習」 |
 | 問題を追加 | 問題文（必須）・出典・要点・習得状況を入力。`$…$` / `$$…$$` で数式（KaTeX） |
-| AIで追加 | 問題の写真や文章を送ると、AI（Claude）が問題文・出典・要点を書き起こして登録候補を出す。確認して「追加」 |
+| AIで追加 | チャット AI（ChatGPT・Claude など）や Claude API に問題文・出典・要点を書き起こさせ、登録候補を確認して「追加」 |
 | データ | JSON への書き出し・読み込み、復習ルールの一覧 |
 
 ## 習得状況と復習ルール
@@ -35,7 +35,18 @@
 - 今日の復習は × → 未判定 → ○ → ◎ の順、同じ状況の中では予定日が古い順に出ます。
 - 編集画面で習得状況を直接変えると、その日に判定したものとして次回の復習日を計算し直します。
 
-## AI で追加（Claude API）
+## AI で追加
+
+### チャット AI に貼り付け（API キー不要・既定）
+
+1. 「指示文をコピー」を押し、ChatGPT・Claude・Gemini などのチャットに貼り付ける。問題の写真を添付するか、問題の文章を続けて書いて送る
+2. AI の返答（コードブロック）をコピーし、「AI の返答を貼り付けて読み込む」に貼り付けて「読み込む」
+3. 読み取った候補を確認し、「追加」または「編集して追加」
+
+AI には `【問題】` `【出典】` `【要点】` の見出しで区切ったテキストを返させます（`js/proposal-parser.js` で読み取り）。
+JSON にしないのは、JSON の中では `\frac` や `\times` などの LaTeX が別の文字に化けやすいためです。
+
+### API で直接（Claude API）
 
 - 使うには [Anthropic の API キー](https://console.anthropic.com/) が必要です（claude.ai の有料プランとは別の、従量課金の API 契約）。「AIで追加」タブの「AI の設定」に入力します。
 - キーはそのブラウザの localStorage にだけ保存され、ブラウザから直接 `api.anthropic.com` に送られます。サーバーは経由しません。共用の端末では使い終わったら「キーを削除」してください。
@@ -52,11 +63,12 @@
 ## 開発
 
 ```sh
-npm test   # 復習ロジック（js/logic.js）のテスト。依存パッケージなし
+npm test   # 復習ロジックと返答の読み取りのテスト。依存パッケージなし
 ```
 
 - `js/logic.js` … 習得状況・復習日の計算（UI に依存しない）
 - `js/app.js` … 画面
-- `js/ai-chat.js` … AI チャット画面（Claude API の呼び出し）
-- `vendor/anthropic-sdk/` … [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) 0.133.0（MIT License）を esbuild でブラウザ用の 1 ファイルにまとめたもの
+- `js/ai-chat.js` … 「AIで追加」画面（貼り付けモードと Claude API モード）
+- `js/proposal-parser.js` … チャット AI の返答から登録候補を取り出す
+- `vendor/anthropic-sdk/` … [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) 0.133.0（MIT License）を esbuild でブラウザ用の 1 ファイルにまとめたもの。API モードを使うときだけ読み込む
 - `vendor/katex/` … 数式表示用の [KaTeX](https://katex.org/) 0.16.11（MIT License）。オフラインでも数式を表示できるよう同梱

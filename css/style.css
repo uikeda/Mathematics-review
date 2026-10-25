@@ -657,3 +657,77 @@ textarea {
   opacity: 0.5;
   cursor: default;
 }
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.mode-btn {
+  font: inherit;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.mode-btn[aria-selected="true"] {
+  border: 2px solid var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.mode-sub {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.step {
+  margin-bottom: 12px;
+}
+
+.step h3 {
+  font-size: 1rem;
+  margin: 0 0 6px;
+}
+
+.step p {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.step textarea {
+  width: 100%;
+}
+
+.step summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.prompt-preview {
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 8px 0 0;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.paste-summary {
+  margin: 0;
+  font-weight: 600;
+}

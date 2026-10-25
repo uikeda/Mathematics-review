@@ -1,18 +1,40 @@
 /*
- * AI チャットで問題を追加する画面
- * Claude API（Anthropic 公式 SDK）をブラウザから直接呼び出す。API キーは利用者のもの。
+ * AI で問題を追加する画面
+ * - 貼り付けモード: 指示文をコピーして手持ちのチャット AI に送り、返答を貼り付けて読み込む（API キー不要）
+ * - API モード: Claude API（Anthropic 公式 SDK）をブラウザから直接呼び出す。API キーは利用者のもの。
  */
 (function () {
   'use strict';
 
   const App = window.MathReviewApp;
   const SETTINGS_KEY = 'math-review.ai';
+  const MODE_KEY = 'math-review.ai-mode';
+  const SDK_SRC = 'vendor/anthropic-sdk/anthropic-sdk.min.js';
   const DEFAULT_MODEL = 'claude-opus-5-5';
   const MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
   // Claude Haiku 5.5 にはサーバー側のフォールバックがない
   const MODELS_WITH_FALLBACK = ['claude-opus-5-5', 'claude-sonnet-5-5'];
   const MAX_IMAGES = 5;
   const MAX_IMAGE_EDGE = 1568;
+
+  // 貼り付けモードでチャット AI に送る指示文
+  const PASTE_PROMPT = `数学の問題を復習ノートアプリに登録したいので、添付した画像（または下に書いた文章）の問題を、次の形式で書き起こしてください。
+
+## 出力形式
+- 全体を1つのコードブロック（\`\`\`text で始める）に入れ、コードブロックの外には何も書かない。
+- 問題が複数あるときは、次のまとまりを問題の数だけ繰り返す。
+
+【問題】
+（問題文）
+【出典】
+（出典）
+【要点】
+（要点）
+
+## 各項目の書き方
+- 問題文: 原文に忠実に書き起こす。数式は LaTeX で書き、文中は $...$、別行は $$...$$ で囲む。小問は (1) (2) のように改行して並べる。図がある問題は、解くのに必要な図の情報を文章で補う。読み取れない箇所は [判読不能] と書く。
+- 出典: 書名と問題番号、大学名・年度・大問番号など。私が示したものか、画像から読み取れるものだけを書き、推測で作らない。分からなければ空欄にする。
+- 要点: 復習のときに「要点をすぐに答えられるか」を確かめるためのもの。解法の方針や鍵になる発想を1〜2文で書く。最終的な答えの値だけにはしない。`;
 
   const SYSTEM_PROMPT = `あなたは数学の復習ノートアプリに組み込まれたアシスタントです。ユーザーが送る文章や問題の写真をもとに、復習用に登録する問題を作るのを手伝います。
 
@@ -172,7 +194,7 @@
 
   // ---------- 表示 ----------
 
-  function proposalCard(item, proposal) {
+  function proposalCard(proposal, rerender) {
     const f = proposal.fields;
     const duplicate = !proposal.addedId && App.hasProblemText(f.text);
     return el('div', { class: `proposal ${proposal.addedId ? 'added' : ''}` },
@@ -189,7 +211,7 @@
       proposal.addedId
         ? el('p', { class: 'added-label' }, '追加しました（未判定）')
         : el('div', { class: 'actions' },
-          el('button', { type: 'button', class: 'btn primary small', onclick: () => addProposal(proposal) }, '追加'),
+          el('button', { type: 'button', class: 'btn primary small', onclick: () => addProposal(proposal, rerender) }, '追加'),
           el('button', { type: 'button', class: 'btn small', onclick: () => App.openDraft(f) }, '編集して追加'),
         ),
     );
@@ -207,22 +229,28 @@
     if (item.role === 'error') {
       return el('div', { class: 'bubble error' }, item.text);
     }
-    const remaining = item.proposals.filter((p) => !p.addedId);
     return el('div', { class: 'bubble assistant' },
       item.message ? mathBlock(item.message) : null,
       item.proposals.length
         ? el('div', { class: 'proposals' },
-          item.proposals.map((p) => proposalCard(item, p)),
-          remaining.length > 1
-            ? el('button', {
-              type: 'button',
-              class: 'btn small',
-              onclick: () => remaining.forEach(addProposal),
-            }, `残りの${remaining.length}問をすべて追加`)
-            : null,
+          proposalList(item.proposals, renderLog),
         )
         : null,
     );
+  }
+
+  function proposalList(proposals, rerender) {
+    const remaining = proposals.filter((p) => !p.addedId);
+    return [
+      ...proposals.map((p) => proposalCard(p, rerender)),
+      remaining.length > 1
+        ? el('button', {
+          type: 'button',
+          class: 'btn small',
+          onclick: () => addProposals(remaining, rerender),
+        }, `残りの${remaining.length}問をすべて追加`)
+        : null,
+    ];
   }
 
   function renderLog() {
@@ -252,16 +280,151 @@
     log.lastElementChild?.scrollIntoView({ block: 'nearest' });
   }
 
-  function addProposal(proposal) {
-    if (proposal.addedId) return;
-    proposal.addedId = App.addProblem(proposal.fields).id;
-    toast('追加しました');
-    renderLog();
+  function addProposal(proposal, rerender) {
+    addProposals([proposal], rerender);
+  }
+
+  function addProposals(proposals, rerender) {
+    const targets = proposals.filter((p) => !p.addedId);
+    targets.forEach((p) => {
+      p.addedId = App.addProblem(p.fields).id;
+    });
+    if (targets.length) toast(targets.length > 1 ? `${targets.length}問を追加しました` : '追加しました');
+    rerender();
+  }
+
+  // ---------- 貼り付けモード ----------
+
+  let pasteProposals = [];
+  let pasteError = '';
+
+  function buildPastePrompt() {
+    const note = $('#paste-note').value.trim();
+    return note ? `${PASTE_PROMPT}\n\n## 補足\n${note}` : PASTE_PROMPT;
+  }
+
+  function updatePromptPreview() {
+    $('#paste-prompt').textContent = buildPastePrompt();
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      // clipboard API が使えない環境（file:// など）では選択してコピーする
+      const area = el('textarea', { readonly: true, style: 'position:fixed;top:0;left:0;opacity:0' });
+      area.value = text;
+      document.body.append(area);
+      area.select();
+      let ok = false;
+      try {
+        ok = document.execCommand('copy');
+      } catch (err) {
+        ok = false;
+      }
+      area.remove();
+      return ok;
+    }
+  }
+
+  async function onCopyPrompt() {
+    const ok = await copyText(buildPastePrompt());
+    if (ok) {
+      toast('指示文をコピーしました。チャット AI に貼り付けてください');
+    } else {
+      $('#paste-prompt-box').open = true;
+      toast('コピーできませんでした。下の指示文を選択してコピーしてください');
+    }
+  }
+
+  function onLoadPaste() {
+    const raw = $('#paste-input').value;
+    if (!raw.trim()) {
+      $('#paste-input').focus();
+      return;
+    }
+    const parsed = window.MathReviewParser.parseProposalText(raw);
+    pasteProposals = parsed.map((fields) => ({ fields, addedId: null }));
+    pasteError = parsed.length
+      ? ''
+      : '問題を読み取れませんでした。AI の返答に【問題】【出典】【要点】の見出しが含まれているか確認してください。';
+    renderPasteResult();
+  }
+
+  function onClearPaste() {
+    $('#paste-input').value = '';
+    pasteProposals = [];
+    pasteError = '';
+    renderPasteResult();
+  }
+
+  function renderPasteResult() {
+    const box = $('#paste-result');
+    if (pasteError) {
+      box.replaceChildren(el('div', { class: 'bubble error' }, pasteError));
+      return;
+    }
+    if (pasteProposals.length === 0) {
+      box.replaceChildren();
+      return;
+    }
+    box.replaceChildren(
+      el('div', { class: 'card' },
+        el('p', { class: 'paste-summary' }, `${pasteProposals.length}問を読み取りました。内容を確認してから追加してください。`),
+        el('div', { class: 'proposals' }, proposalList(pasteProposals, renderPasteResult)),
+      ),
+    );
+  }
+
+  // ---------- モード切り替え ----------
+
+  function loadMode() {
+    try {
+      return localStorage.getItem(MODE_KEY) === 'api' ? 'api' : 'paste';
+    } catch (e) {
+      return 'paste';
+    }
+  }
+
+  function setMode(mode) {
+    try {
+      localStorage.setItem(MODE_KEY, mode);
+    } catch (e) {
+      /* 次回は既定のモードで開く */
+    }
+    document.querySelectorAll('.mode-btn').forEach((btn) => {
+      btn.setAttribute('aria-selected', String(btn.dataset.mode === mode));
+    });
+    $('#paste-mode').hidden = mode !== 'paste';
+    $('#api-mode').hidden = mode !== 'api';
+    if (mode === 'api') renderLog();
+    else renderPasteResult();
+  }
+
+  // API モードを使うときだけ SDK を読み込む
+  let sdkPromise = null;
+  function loadSdk() {
+    if (window.AnthropicSDK) return Promise.resolve(window.AnthropicSDK);
+    if (!sdkPromise) {
+      sdkPromise = new Promise((resolve, reject) => {
+        const script = el('script', { src: SDK_SRC });
+        script.onload = () => resolve(window.AnthropicSDK);
+        script.onerror = () => {
+          sdkPromise = null;
+          script.remove();
+          reject(new Error('AI 機能を読み込めませんでした。通信状態を確認してください。'));
+        };
+        document.head.append(script);
+      });
+    }
+    return sdkPromise;
   }
 
   // ---------- 送信 ----------
 
   function errorMessage(err) {
+    if (!window.AnthropicSDK) return err.message;
     const A = window.AnthropicSDK.default;
     if (err instanceof A.AuthenticationError) return 'API キーが正しくありません。「AI の設定」を確認してください。';
     if (err instanceof A.PermissionDeniedError) return 'この API キーでは選んだモデルを使えません。';
@@ -310,10 +473,6 @@
       toast('先に API キーを入力してください');
       return;
     }
-    if (!window.AnthropicSDK) {
-      toast('AI 機能を読み込めませんでした。ページを再読み込みしてください。');
-      return;
-    }
     const text = $('#chat-input').value.trim();
     const images = pendingImages;
     if (!text && images.length === 0) return;
@@ -334,6 +493,7 @@
     renderLog();
 
     try {
+      await loadSdk();
       const client = new window.AnthropicSDK.default({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
       const params = {
         model: settings.model,
@@ -404,10 +564,19 @@
       const files = [...(event.clipboardData?.files || [])];
       if (files.some((f) => f.type.startsWith('image/'))) addImages(files);
     });
-    App.onViewChange((view) => {
-      if (view === 'chat') renderLog();
+    $('#paste-note').addEventListener('input', updatePromptPreview);
+    $('#paste-copy').addEventListener('click', onCopyPrompt);
+    $('#paste-load').addEventListener('click', onLoadPaste);
+    $('#paste-clear').addEventListener('click', onClearPaste);
+    document.querySelectorAll('.mode-btn').forEach((btn) => {
+      btn.addEventListener('click', () => setMode(btn.dataset.mode));
     });
-    renderLog();
+    App.onViewChange((view) => {
+      // 一覧などで問題が増減したら「登録済み」の表示を更新する
+      if (view === 'chat') setMode(loadMode());
+    });
+    updatePromptPreview();
+    setMode(loadMode());
   }
 
   init();
