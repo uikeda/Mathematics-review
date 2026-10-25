@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>数学 復習ノート</title>
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script defer src="vendor/katex/katex.min.js"></script>
+  <script defer src="vendor/katex/contrib/auto-render.min.js"></script>
+  <script defer src="js/logic.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>数学 復習ノート</h1>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="review">復習 <span class="badge" id="due-badge" hidden></span></button>
+      <button class="tab" role="tab" data-view="list">問題一覧</button>
+      <button class="tab" role="tab" data-view="form">問題を追加</button>
+      <button class="tab" role="tab" data-view="data">データ</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- 復習 -->
+    <section class="view" id="view-review" hidden>
+      <div class="stats" id="stats"></div>
+      <div id="review-area"></div>
+    </section>
+
+    <!-- 問題一覧 -->
+    <section class="view" id="view-list" hidden>
+      <div class="toolbar">
+        <input type="search" id="list-search" placeholder="問題文・出典・要点で検索">
+        <select id="list-status">
+          <option value="">すべての状況</option>
+          <option value="unrated">未判定</option>
+          <option value="wrong">×</option>
+          <option value="ok">○</option>
+          <option value="mastered">◎</option>
+        </select>
+        <select id="list-sort">
+          <option value="due">復習予定日が近い順</option>
+          <option value="created-desc">追加が新しい順</option>
+          <option value="created-asc">追加が古い順</option>
+          <option value="source">出典順</option>
+        </select>
+      </div>
+      <p class="muted" id="list-count"></p>
+      <ul class="problem-list" id="problem-list"></ul>
+    </section>
+
+    <!-- 追加・編集 -->
+    <section class="view" id="view-form" hidden>
+      <h2 id="form-title">問題を追加</h2>
+      <form id="problem-form" autocomplete="off">
+        <label class="field">
+          <span class="field-label">問題文 <span class="required">必須</span></span>
+          <textarea id="f-text" rows="6" required placeholder="例: $x^2 - 5x + 6 = 0$ を解け。"></textarea>
+          <span class="hint">$…$ で数式（インライン）、$$…$$ で数式（別行）を書けます（KaTeX）。</span>
+        </label>
+        <div class="preview-box" id="f-text-preview" aria-live="polite"></div>
+
+        <label class="field">
+          <span class="field-label">出典</span>
+          <input type="text" id="f-source" list="source-options" placeholder="例: 青チャート数学I・A 例題12 / 2023年 東大 第3問">
+          <datalist id="source-options"></datalist>
+        </label>
+
+        <label class="field">
+          <span class="field-label">要点</span>
+          <textarea id="f-keypoint" rows="3" placeholder="例: 因数分解 $(x-2)(x-3)=0$ に気づくこと"></textarea>
+          <span class="hint">復習時に「要点をすぐに答えられたか」を確かめるための答えです。</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">習得状況</span>
+          <select id="f-status">
+            <option value="unrated">未判定</option>
+            <option value="wrong">×</option>
+            <option value="ok">○</option>
+            <option value="mastered">◎</option>
+          </select>
+          <span class="hint" id="f-status-hint"></span>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="f-submit">追加する</button>
+          <button type="button" class="btn" id="f-cancel" hidden>キャンセル</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- データ -->
+    <section class="view" id="view-data" hidden>
+      <h2>データの保存と復元</h2>
+      <p>データはこのブラウザの中（localStorage）にだけ保存されます。ブラウザのデータを消したり、別の端末で開いたりすると見えなくなるので、定期的に書き出してください。</p>
+      <div class="form-actions">
+        <button type="button" class="btn primary" id="export-btn">JSON に書き出す</button>
+        <label class="btn">
+          JSON から読み込む
+          <input type="file" id="import-file" accept="application/json,.json" hidden>
+        </label>
+      </div>
+      <p class="muted">読み込むと、現在のデータは読み込んだファイルの内容で置き換わります。</p>
+
+      <h2>復習のルール</h2>
+      <table class="rules">
+        <thead><tr><th>状況</th><th>次の復習</th><th>状況の変わり方</th></tr></thead>
+        <tbody>
+          <tr><td><span class="status status-unrated">未判定</span></td><td>すぐ</td><td>解けた → ○ ／ 解けなかった → ×</td></tr>
+          <tr><td><span class="status status-wrong">×</span></td><td>1日後</td><td>解けた → ○ ／ 解けなかった → ×</td></tr>
+          <tr><td><span class="status status-ok">○</span></td><td>3日後 → 7日後 → 14日後<br><span class="muted">（要点即答の回数で伸びる）</span></td><td>要点をすぐ答えられた → 回数+1（累計3回で ◎）<br>解けたが要点はすぐ出なかった → ○のまま<br>解けなかった → ×（回数リセット）</td></tr>
+          <tr><td><span class="status status-mastered">◎</span></td><td>30日後</td><td>要点をすぐ答えられた → ◎のまま<br>解けたが要点はすぐ出なかった → ○（回数リセット）<br>解けなかった → ×</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
