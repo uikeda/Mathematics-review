@@ -124,7 +124,7 @@
         ? el('p', { class: 'added-label' }, '追加しました（未判定）')
         : el('div', { class: 'actions' },
           el('button', { type: 'button', class: 'btn primary small', onclick: () => addProposals([proposal]) }, '追加'),
-          el('button', { type: 'button', class: 'btn small', onclick: () => App.openDraft(f) }, '編集して追加'),
+          el('button', { type: 'button', class: 'btn small', onclick: () => App.openDraft(f, (p) => { proposal.addedId = p.id; }) }, '編集して追加'),
         ),
     );
   }

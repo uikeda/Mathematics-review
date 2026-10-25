@@ -19,7 +19,6 @@
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" data-view="review">復習 <span class="badge" id="due-badge" hidden></span></button>
       <button class="tab" role="tab" data-view="list">問題一覧</button>
-      <button class="tab" role="tab" data-view="form">問題を追加</button>
       <button class="tab" role="tab" data-view="ai">AIで追加</button>
       <button class="tab" role="tab" data-view="data">データ</button>
     </nav>
@@ -54,9 +53,9 @@
       <ul class="problem-list" id="problem-list"></ul>
     </section>
 
-    <!-- 追加・編集 -->
+    <!-- 編集（一覧の「編集」と AI の候補の「編集して追加」から開く） -->
     <section class="view" id="view-form" hidden>
-      <h2 id="form-title">問題を追加</h2>
+      <h2 id="form-title">問題を編集</h2>
       <form id="problem-form" autocomplete="off">
         <label class="field">
           <span class="field-label">問題文 <span class="required">必須</span></span>
@@ -90,7 +89,7 @@
 
         <div class="form-actions">
           <button type="submit" class="btn primary" id="f-submit">追加する</button>
-          <button type="button" class="btn" id="f-cancel" hidden>キャンセル</button>
+          <button type="button" class="btn" id="f-cancel">キャンセル</button>
         </div>
       </form>
     </section>

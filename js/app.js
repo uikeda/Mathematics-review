@@ -26,6 +26,8 @@
   let problems = load();
   let currentView = 'review';
   let editingId = null;
+  // 「編集して追加」で開いた AI の候補が追加されたときに呼ぶ
+  let draftOnAdded = null;
   const viewListeners = [];
   // 復習画面の状態
   const review = {
@@ -218,7 +220,7 @@
       area.replaceChildren(
         el('div', { class: 'card empty' },
           el('p', {}, 'まだ問題が登録されていません。'),
-          el('button', { class: 'btn primary', onclick: () => openForm(null) }, '問題を追加する'),
+          el('button', { class: 'btn primary', onclick: () => showView('ai') }, 'AIで問題を追加する'),
         ),
       );
       return;
@@ -433,9 +435,8 @@
   }
 
   function fillForm(p) {
-    $('#form-title').textContent = p ? '問題を編集' : '問題を追加';
+    $('#form-title').textContent = p ? '問題を編集' : 'AI の候補を編集して追加';
     $('#f-submit').textContent = p ? '保存する' : '追加する';
-    $('#f-cancel').hidden = !p;
     $('#f-text').value = p ? p.text : '';
     $('#f-source').value = p ? p.source : '';
     $('#f-keypoint').value = p ? p.keypoint : '';
@@ -446,7 +447,8 @@
 
   function openForm(id) {
     editingId = id;
-    fillForm(id ? findProblem(id) : null);
+    draftOnAdded = null;
+    fillForm(findProblem(id));
     showView('form');
     $('#f-text').focus();
   }
@@ -476,24 +478,21 @@
       fillForm(null);
       showView('list');
     } else {
-      problems = problems.concat(L.createProblem(fields, now));
+      const p = L.createProblem(fields, now);
+      problems = problems.concat(p);
       save();
+      if (draftOnAdded) draftOnAdded(p);
+      draftOnAdded = null;
       toast('追加しました');
-      // 続けて入力しやすいように出典だけ残す
-      $('#f-text').value = '';
-      $('#f-keypoint').value = '';
-      $('#f-status').value = 'unrated';
-      updatePreview();
-      updateStatusHint();
-      renderBadge();
-      renderSourceOptions();
-      $('#f-text').focus();
+      fillForm(null);
+      showView('ai');
     }
   }
 
-  // AI の提案などから、内容を入れた状態で新規追加フォームを開く
-  function openDraft(fields) {
+  // AI の候補を、内容を入れた状態の追加フォームで開く
+  function openDraft(fields, onAdded) {
     editingId = null;
+    draftOnAdded = onAdded || null;
     fillForm(null);
     $('#f-text').value = fields.text || '';
     $('#f-source').value = fields.source || '';
@@ -517,9 +516,11 @@
   }
 
   function cancelEdit() {
+    const back = editingId ? 'list' : 'ai';
     editingId = null;
+    draftOnAdded = null;
     fillForm(null);
-    showView('list');
+    showView(back);
   }
 
   // ---------- データ ----------
@@ -566,14 +567,7 @@
 
   function init() {
     document.querySelectorAll('.tab').forEach((tab) => {
-      tab.addEventListener('click', () => {
-        if (tab.dataset.view === 'form' && editingId) {
-          // 編集中に「問題を追加」タブを押したら新規入力に切り替える
-          openForm(null);
-          return;
-        }
-        showView(tab.dataset.view);
-      });
+      tab.addEventListener('click', () => showView(tab.dataset.view));
     });
     $('#list-search').addEventListener('input', renderList);
     $('#list-status').addEventListener('change', renderList);
