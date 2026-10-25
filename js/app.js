@@ -595,7 +595,7 @@
     let initialView = 'review';
     try {
       const saved = localStorage.getItem(VIEW_KEY);
-      if (['review', 'list', 'chat', 'data'].includes(saved)) initialView = saved;
+      if (['review', 'list', 'ai', 'data'].includes(saved)) initialView = saved;
     } catch (e) {
       /* 既定の画面で開く */
     }
@@ -603,7 +603,7 @@
     showView(initialView);
   }
 
-  // AI チャット画面（js/ai-chat.js）から使う
+  // 「AIで追加」画面（js/ai-import.js）から使う
   window.MathReviewApp = {
     el,
     mathBlock,

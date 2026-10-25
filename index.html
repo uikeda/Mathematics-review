@@ -11,7 +11,7 @@
   <script defer src="js/logic.js"></script>
   <script defer src="js/app.js"></script>
   <script defer src="js/proposal-parser.js"></script>
-  <script defer src="js/ai-chat.js"></script>
+  <script defer src="js/ai-import.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -20,7 +20,7 @@
       <button class="tab" role="tab" data-view="review">復習 <span class="badge" id="due-badge" hidden></span></button>
       <button class="tab" role="tab" data-view="list">問題一覧</button>
       <button class="tab" role="tab" data-view="form">問題を追加</button>
-      <button class="tab" role="tab" data-view="chat">AIで追加</button>
+      <button class="tab" role="tab" data-view="ai">AIで追加</button>
       <button class="tab" role="tab" data-view="data">データ</button>
     </nav>
   </header>
@@ -95,82 +95,41 @@
       </form>
     </section>
 
-    <!-- AI チャットで追加 -->
-    <section class="view" id="view-chat" hidden>
-      <div class="mode-switch" role="tablist" aria-label="AI の使い方">
-        <button type="button" class="mode-btn" role="tab" data-mode="paste">チャット AI に貼り付け<span class="mode-sub">API キー不要</span></button>
-        <button type="button" class="mode-btn" role="tab" data-mode="api">API で直接<span class="mode-sub">API キーが必要</span></button>
-      </div>
-
-      <div id="paste-mode" hidden>
-        <div class="card step">
-          <h3>1. 指示文をコピーして、チャット AI に送る</h3>
-          <p>ChatGPT・Claude・Gemini などのチャットに指示文を貼り付け、問題の写真を添付するか、指示文の後に問題の文章を書いて送ってください。</p>
-          <label class="field">
-            <span class="field-label">補足（任意）</span>
-            <input type="text" id="paste-note" placeholder="例: 出典は 青チャート数学I・A 例題12〜14">
-            <span class="hint">出典など AI に伝えたいことを書くと、指示文の最後に加えます。</span>
-          </label>
-          <div class="form-actions">
-            <button type="button" class="btn primary" id="paste-copy">指示文をコピー</button>
-          </div>
-          <details id="paste-prompt-box">
-            <summary>指示文を見る</summary>
-            <pre class="prompt-preview" id="paste-prompt"></pre>
-          </details>
+    <!-- AI で追加（チャット AI に貼り付け） -->
+    <section class="view" id="view-ai" hidden>
+      <div class="card step">
+        <h3>1. 指示文をコピーして、チャット AI に送る</h3>
+        <ol>
+          <li>必要なら補足を書いて「指示文をコピー」を押す</li>
+          <li>ChatGPT・Claude・Gemini などのチャットを開き、指示文を貼り付ける</li>
+          <li>問題の写真を添付するか、指示文の後に問題の文章を書いて送る</li>
+        </ol>
+        <label class="field">
+          <span class="field-label">補足（任意）</span>
+          <input type="text" id="paste-note" placeholder="例: 出典は 青チャート数学I・A 例題12〜14">
+          <span class="hint">出典など AI に伝えたいことを書くと、指示文の最後に加えます。</span>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="btn primary" id="paste-copy">指示文をコピー</button>
         </div>
-
-        <div class="card step">
-          <h3>2. AI の返答を貼り付けて読み込む</h3>
-          <p>返答のコードブロックにあるコピーボタンでコピーし、下に貼り付けてください。</p>
-          <textarea id="paste-input" rows="8" placeholder="【問題】&#10;…&#10;【出典】&#10;…&#10;【要点】&#10;…"></textarea>
-          <div class="form-actions">
-            <button type="button" class="btn primary" id="paste-load">読み込む</button>
-            <button type="button" class="btn" id="paste-clear">クリア</button>
-          </div>
-        </div>
-
-        <div id="paste-result" aria-live="polite"></div>
-      </div>
-
-      <div id="api-mode" hidden>
-        <details class="card ai-settings" id="ai-settings">
-          <summary>AI の設定</summary>
-          <label class="field">
-            <span class="field-label">Anthropic API キー</span>
-            <input type="password" id="ai-key" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
-            <span class="hint">キーはこのブラウザにだけ保存され、Anthropic の API との通信にだけ使います。利用料金はキーの持ち主に請求されます。共用のパソコンでは使い終わったら削除してください。</span>
-          </label>
-          <label class="field">
-            <span class="field-label">モデル</span>
-            <select id="ai-model">
-              <option value="claude-opus-5-5">Claude Opus 5.5（最も高精度・既定）</option>
-              <option value="claude-sonnet-5-5">Claude Sonnet 5.5（速い・安い）</option>
-              <option value="claude-haiku-5-5">Claude Haiku 5.5（最も安い）</option>
-            </select>
-          </label>
-          <div class="form-actions">
-            <button type="button" class="btn primary" id="ai-save">保存</button>
-            <button type="button" class="btn danger" id="ai-clear-key">キーを削除</button>
-          </div>
+        <details id="paste-prompt-box">
+          <summary>指示文を見る</summary>
+          <pre class="prompt-preview" id="paste-prompt"></pre>
         </details>
-
-        <div class="chat-log" id="chat-log" aria-live="polite"></div>
-
-        <form class="chat-form" id="chat-form" autocomplete="off">
-          <div class="chat-attachments" id="chat-attachments"></div>
-          <textarea id="chat-input" rows="3" placeholder="例: 青チャート数学I・A 例題12 です（問題の写真を添付）"></textarea>
-          <div class="chat-actions">
-            <label class="btn">
-              画像を添付
-              <input type="file" id="chat-file" accept="image/*" multiple hidden>
-            </label>
-            <button type="button" class="btn" id="chat-reset">新しい会話</button>
-            <button type="submit" class="btn primary" id="chat-send">送信</button>
-          </div>
-          <p class="hint">Ctrl+Enter（Mac は ⌘+Enter）でも送信できます。画像は貼り付けでも添付できます。会話が長くなると送信のたびに料金が増えるので、話題が変わったら「新しい会話」にしてください。</p>
-        </form>
       </div>
+
+      <div class="card step">
+        <h3>2. AI の返答を貼り付けて読み込む</h3>
+        <p>返答のコードブロックにあるコピーボタンでコピーし、下に貼り付けてください。</p>
+        <textarea id="paste-input" rows="8" placeholder="【問題】&#10;…&#10;【出典】&#10;…&#10;【要点】&#10;…"></textarea>
+        <div class="form-actions">
+          <button type="button" class="btn primary" id="paste-load">読み込む</button>
+          <button type="button" class="btn" id="paste-clear">クリア</button>
+        </div>
+      </div>
+
+      <div id="paste-result" aria-live="polite"></div>
+      <p class="hint">AI が書いた問題文や要点には誤りが含まれることがあります。必ず確認してから追加してください。</p>
     </section>
 
     <!-- データ -->
