@@ -26,6 +26,7 @@
   let problems = load();
   let currentView = 'review';
   let editingId = null;
+  const viewListeners = [];
   // 復習画面の状態
   const review = {
     skipped: [], // 「あとで」にした問題 ID（このページを開いている間だけ）
@@ -156,6 +157,7 @@
       section.hidden = section.id !== `view-${view}`;
     });
     render();
+    viewListeners.forEach((fn) => fn(view));
   }
 
   function render() {
@@ -489,6 +491,31 @@
     }
   }
 
+  // AI の提案などから、内容を入れた状態で新規追加フォームを開く
+  function openDraft(fields) {
+    editingId = null;
+    fillForm(null);
+    $('#f-text').value = fields.text || '';
+    $('#f-source').value = fields.source || '';
+    $('#f-keypoint').value = fields.keypoint || '';
+    updatePreview();
+    showView('form');
+    $('#f-text').focus();
+  }
+
+  function addProblem(fields) {
+    const p = L.createProblem({ ...fields, status: 'unrated' }, new Date());
+    problems = problems.concat(p);
+    save();
+    renderBadge();
+    return p;
+  }
+
+  function hasProblemText(text) {
+    const t = text.trim();
+    return problems.some((p) => p.text.trim() === t);
+  }
+
   function cancelEdit() {
     editingId = null;
     fillForm(null);
@@ -568,13 +595,24 @@
     let initialView = 'review';
     try {
       const saved = localStorage.getItem(VIEW_KEY);
-      if (['review', 'list', 'data'].includes(saved)) initialView = saved;
+      if (['review', 'list', 'ai', 'data'].includes(saved)) initialView = saved;
     } catch (e) {
       /* 既定の画面で開く */
     }
     fillForm(null);
     showView(initialView);
   }
+
+  // 「AIで追加」画面（js/ai-import.js）から使う
+  window.MathReviewApp = {
+    el,
+    mathBlock,
+    toast,
+    addProblem,
+    hasProblemText,
+    openDraft,
+    onViewChange: (fn) => viewListeners.push(fn),
+  };
 
   init();
 })();

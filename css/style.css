@@ -476,3 +476,111 @@ textarea {
     font-size: 0.8rem;
   }
 }
+
+/* AI で追加 */
+
+.step {
+  margin-bottom: 12px;
+}
+
+.step h3 {
+  font-size: 1rem;
+  margin: 0 0 6px;
+}
+
+.step p {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.step textarea {
+  width: 100%;
+}
+
+.step summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.step ol {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+  font-size: 0.9rem;
+}
+
+.prompt-preview {
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 8px 0 0;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.paste-summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.error-box {
+  border: 1px solid var(--wrong);
+  border-radius: var(--radius);
+  color: var(--wrong);
+  background: var(--surface);
+  padding: 10px 14px;
+}
+
+.proposals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.proposal {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.proposal.added {
+  border-left-color: var(--ok);
+  opacity: 0.75;
+}
+
+.proposal-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.9rem;
+}
+
+.proposal-label {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding-top: 0.2em;
+}
+
+.proposal .actions {
+  margin-top: 8px;
+}
+
+.added-label {
+  margin: 8px 0 0;
+  color: var(--ok);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.warn {
+  color: var(--mastered);
+  font-size: 0.85rem;
+  margin: 6px 0 0;
+}
