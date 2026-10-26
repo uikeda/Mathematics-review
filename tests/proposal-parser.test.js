@@ -19,7 +19,6 @@ test('基本の形式を読み取り、LaTeX のバックスラッシュをそ�
     {
       text: '$\\frac{1}{2} \\times x = 3$ を解け。\n(1) 方程式を立てよ。\n(2) $x$ を求めよ。',
       source: '青チャート数学I・A 例題12',
-      keypoint: '両辺に $2$ を掛けて $x$ を孤立させる',
     },
   ]);
 });
@@ -44,7 +43,7 @@ $$\\int_0^1 x^2\\,dx$$ を求めよ。
   const result = parseProposalText(text);
   assert.equal(result.length, 2);
   assert.equal(result[0].text, '問1');
-  assert.equal(result[0].keypoint, '要点1');
+  assert.equal(result[0].source, '本A');
   assert.equal(result[1].text, '$$\\int_0^1 x^2\\,dx$$ を求めよ。');
   assert.equal(result[1].source, '');
 });
@@ -55,7 +54,7 @@ $a^2$ を展開せよ。
 **【出典】** 2023年 東大 第3問
 **【要点】：公式を使う**`;
   assert.deepEqual(parseProposalText(text), [
-    { text: '$a^2$ を展開せよ。', source: '2023年 東大 第3問', keypoint: '公式を使う' },
+    { text: '$a^2$ を展開せよ。', source: '2023年 東大 第3問' },
   ]);
 });
 
@@ -74,5 +73,10 @@ test('問題文の無いものや形式に合わないテキストは候補に�
 
 test('Windows の改行コードでも読み取れる', () => {
   const [p] = parseProposalText('【問題】\r\n問\r\n【出典】\r\n本\r\n【要点】\r\nk\r\n');
-  assert.deepEqual(p, { text: '問', source: '本', keypoint: 'k' });
+  assert.deepEqual(p, { text: '問', source: '本' });
+});
+
+test('要点・解答・解説・ヒントは読み捨て、出典に混ざらない', () => {
+  const text = '【問題】\nq\n【出典】\n本A\n【解答】\n$x=2$\n【解説】\n因数分解\n【ヒント】\nh\n【要点】\nk';
+  assert.deepEqual(parseProposalText(text), [{ text: 'q', source: '本A' }]);
 });

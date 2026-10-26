@@ -232,21 +232,6 @@ h2 {
   margin: 12px 0 8px;
 }
 
-.keypoint {
-  margin-top: 12px;
-  padding: 12px;
-  border-left: 4px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-radius: 0 var(--radius) var(--radius) 0;
-}
-
-.keypoint-label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -598,16 +583,8 @@ textarea {
   margin: 10px 0 0;
 }
 
-.keypoint-input,
 .source-input {
   width: 100%;
-}
-
-.keypoint-preview {
-  font-size: 0.9rem;
-  padding: 6px 10px;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
 }
 
 /* 写真 */
@@ -712,4 +689,8 @@ textarea {
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--muted);
+}
+
+.skip-actions {
+  margin-top: 8px;
 }

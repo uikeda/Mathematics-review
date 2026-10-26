@@ -109,6 +109,8 @@ test('normalize は壊れたデータを既定値で補う', () => {
   assert.deepEqual(p.history, []);
   assert.deepEqual(p.images, []);
   assert.deepEqual(L.normalize({ images: ['img-1', 3, '', 'img-2'] }).images, ['img-1', 'img-2']);
+  // 要点は記録しない（以前のデータに残っていても読み込み時に外す）
+  assert.equal('keypoint' in L.normalize({ text: 'x', keypoint: 'old' }), false);
 });
 
 test('写真つきの問題を作れる（問題文は空でもよい）', () => {
