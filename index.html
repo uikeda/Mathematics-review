@@ -103,6 +103,7 @@
           <li>ChatGPT・Claude・Gemini などのチャットを開き、指示文を貼り付ける</li>
           <li>問題の写真を添付するか、指示文の後に問題の文章を書いて送る</li>
         </ol>
+        <p>写真を複数枚添付したり、1枚に複数の問題が写っていたりしても、まとめて書き起こせます。</p>
         <label class="field">
           <span class="field-label">補足（任意）</span>
           <input type="text" id="paste-note" placeholder="例: 出典は 青チャート数学I・A 例題12〜14">
@@ -119,11 +120,11 @@
 
       <div class="card step">
         <h3>2. AI の返答を貼り付けて読み込む</h3>
-        <p>返答のコードブロックにあるコピーボタンでコピーし、下に貼り付けてください。</p>
+        <p>返答のコードブロックにあるコピーボタンでコピーし、下に貼り付けてください。何回かに分けて貼り付けると、候補が下に追加されていきます。</p>
         <textarea id="paste-input" rows="8" placeholder="【問題】&#10;…&#10;【出典】&#10;…"></textarea>
         <div class="form-actions">
           <button type="button" class="btn primary" id="paste-load">読み込む</button>
-          <button type="button" class="btn" id="paste-clear">クリア</button>
+          <button type="button" class="btn" id="paste-clear">入力欄をクリア</button>
         </div>
       </div>
 
