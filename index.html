@@ -35,7 +35,7 @@
     <!-- 問題一覧 -->
     <section class="view" id="view-list" hidden>
       <div class="toolbar">
-        <input type="search" id="list-search" placeholder="問題文・出典・要点で検索">
+        <input type="search" id="list-search" placeholder="問題文・出典で検索">
         <select id="list-status">
           <option value="">すべての状況</option>
           <option value="unrated">未判定</option>
@@ -80,12 +80,6 @@
           <span class="field-label">出典</span>
           <input type="text" id="f-source" list="source-options" placeholder="例: 青チャート数学I・A 例題12 / 2023年 東大 第3問">
           <datalist id="source-options"></datalist>
-        </label>
-
-        <label class="field">
-          <span class="field-label">要点</span>
-          <textarea id="f-keypoint" rows="3" placeholder="例: 因数分解 $(x-2)(x-3)=0$ に気づくこと"></textarea>
-          <span class="hint">復習時に「要点をすぐに答えられたか」を確かめるための答えです。</span>
         </label>
 
         <label class="field">

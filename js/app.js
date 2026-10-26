@@ -37,7 +37,6 @@
     skipped: [], // 「あとで」にした問題 ID（このページを開いている間だけ）
     forcedId: null, // 一覧から「今すぐ復習」を選んだ問題
     currentId: null,
-    revealed: false,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -292,10 +291,7 @@
       return;
     }
 
-    if (review.currentId !== current.id) {
-      review.currentId = current.id;
-      review.revealed = false;
-    }
+    review.currentId = current.id;
 
     const isForced = review.forcedId === current.id;
     const remaining = due.filter((p) => p.id !== current.id).length;
@@ -312,8 +308,8 @@
 
     const question =
       p.status === 'ok' || p.status === 'mastered'
-        ? 'この問題の要点をすぐに答えられますか？ 頭の中で答えてから確認してください。'
-        : 'この問題を解いてから、要点を確認してください。';
+        ? 'この問題の要点をすぐに答えられますか？ 頭の中で答えてから自己判定してください。'
+        : 'この問題を解いてから、自己判定してください。';
 
     const card = el('article', { class: 'card review-card' },
       el('div', { class: 'card-head' },
@@ -323,36 +319,15 @@
       ),
       problemBody(p),
       el('p', { class: 'prompt' }, question),
-    );
-
-    if (!review.revealed) {
-      card.append(
-        el('div', { class: 'actions' },
-          el('button', {
-            class: 'btn primary',
-            onclick: () => {
-              review.revealed = true;
-              renderReview();
-            },
-          }, '要点を確認する'),
-          review.forcedId === p.id
-            ? el('button', { class: 'btn', onclick: () => { review.forcedId = null; showView('list'); } }, 'やめる')
-            : el('button', { class: 'btn', onclick: () => skip(p.id) }, 'あとで'),
-        ),
-      );
-      return card;
-    }
-
-    card.append(
-      el('div', { class: 'keypoint' },
-        el('div', { class: 'keypoint-label' }, '要点'),
-        p.keypoint ? mathBlock(p.keypoint) : el('p', { class: 'muted' }, '要点は登録されていません。編集画面から追加できます。'),
-      ),
-      el('p', { class: 'prompt' }, '自己判定してください'),
       el('div', { class: 'actions result-actions' },
         buttons.map((b) =>
           el('button', { class: `btn result ${b.cls}`, onclick: () => submitReview(p.id, b.result) }, b.label),
         ),
+      ),
+      el('div', { class: 'actions skip-actions' },
+        review.forcedId === p.id
+          ? el('button', { class: 'btn small', onclick: () => { review.forcedId = null; showView('list'); } }, 'やめる')
+          : el('button', { class: 'btn small', onclick: () => skip(p.id) }, 'あとで'),
       ),
     );
     return card;
@@ -399,7 +374,7 @@
     let items = problems.filter((p) => {
       if (status && p.status !== status) return false;
       if (!query) return true;
-      return [p.text, p.source, p.keypoint].some((s) => s.toLowerCase().includes(query));
+      return [p.text, p.source].some((s) => s.toLowerCase().includes(query));
     });
 
     const sorters = {
@@ -524,7 +499,6 @@
     $('#f-submit').textContent = p ? '保存する' : '追加する';
     $('#f-text').value = p ? p.text : '';
     $('#f-source').value = p ? p.source : '';
-    $('#f-keypoint').value = p ? p.keypoint : '';
     $('#f-status').value = p ? p.status : 'unrated';
     formImages = p ? p.images.slice() : [];
     renderFormImages();
@@ -545,7 +519,6 @@
     const fields = {
       text: $('#f-text').value.trim(),
       source: $('#f-source').value.trim(),
-      keypoint: $('#f-keypoint').value.trim(),
       status: $('#f-status').value,
     };
     if (!fields.text && formImages.length === 0) {
@@ -574,7 +547,6 @@
         ...p,
         text: fields.text,
         source: fields.source,
-        keypoint: fields.keypoint,
         images: fields.images,
         updatedAt: now.toISOString(),
       };
@@ -604,7 +576,6 @@
     fillForm(null);
     $('#f-text').value = fields.text || '';
     $('#f-source').value = fields.source || '';
-    $('#f-keypoint').value = fields.keypoint || '';
     formImages = (fields.images || []).slice();
     renderFormImages();
     updatePreview();
@@ -735,6 +706,8 @@
     } catch (e) {
       /* 既定の画面で開く */
     }
+    // 読み込み時に整えた内容（記録しなくなった項目の削除など）を保存し直す
+    if (problems.length) save();
     fillForm(null);
     showView(initialView);
     removeOrphanImages();
