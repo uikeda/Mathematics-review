@@ -14,7 +14,7 @@
 
 ## 出力形式
 - 全体を1つのコードブロック（\`\`\`text で始める）に入れ、コードブロックの外には何も書かない。
-- 問題が複数あるときは、次のまとまりを問題の数だけ繰り返す。
+- 問題が複数あるとき（画像が複数枚あるとき、1枚に複数の問題があるときを含む）は、すべての問題について、次のまとまりを問題の数だけ繰り返す。小問は分けずに1つの問題としてまとめる。
 
 【問題】
 （問題文）
@@ -79,18 +79,38 @@
       return;
     }
     const parsed = window.MathReviewParser.parseProposalText(raw);
+    if (parsed.length === 0) {
+      errorText = '問題を読み取れませんでした。AI の返答に【問題】【出典】の見出しが含まれているか確認してください。';
+      render();
+      return;
+    }
+    // 何回かに分けて貼り付けられるように、候補は置き換えずに後ろへ足していく。
+    // 同じ返答を二度貼ったときのために、問題文が同じ候補は除く
+    const known = new Set(proposals.map((p) => p.fields.text));
+    const fresh = parsed.filter((p) => {
+      if (known.has(p.text)) return false;
+      known.add(p.text);
+      return true;
+    });
     // 要点は自分で書く。AI が書いてきても使わない
-    proposals = parsed.map(({ text, source }) => ({ fields: { text, source, keypoint: '' }, addedId: null }));
-    errorText = parsed.length
-      ? ''
-      : '問題を読み取れませんでした。AI の返答に【問題】【出典】【要点】の見出しが含まれているか確認してください。';
+    proposals = proposals.concat(fresh.map(({ text, source }) => ({ fields: { text, source, keypoint: '' }, addedId: null })));
+    errorText = '';
+    $('#paste-input').value = '';
+    const skipped = parsed.length - fresh.length;
+    toast(`${fresh.length}問を読み込みました${skipped ? `（読み込み済みの${skipped}問は除外）` : ''}`);
     render();
   }
 
-  function onClear() {
+  function onClearInput() {
     $('#paste-input').value = '';
-    proposals = [];
     errorText = '';
+    render();
+  }
+
+  function onClearProposals() {
+    const remaining = proposals.filter((p) => !p.addedId).length;
+    if (remaining && !confirm(`まだ追加していない候補が${remaining}問あります。候補の一覧を消しますか？`)) return;
+    proposals = [];
     render();
   }
 
@@ -183,25 +203,24 @@
 
   function render() {
     const box = $('#paste-result');
-    if (errorText) {
-      box.replaceChildren(el('div', { class: 'error-box' }, errorText));
-      return;
-    }
-    if (proposals.length === 0) {
-      box.replaceChildren();
-      return;
-    }
     const remaining = proposals.filter((p) => !p.addedId);
     box.replaceChildren(
-      el('div', { class: 'card' },
-        el('p', { class: 'paste-summary' }, `${proposals.length}問を読み取りました。問題文を確認し、要点を書いてから追加してください。`),
-        el('div', { class: 'proposals' },
-          proposals.map(proposalCard),
-          remaining.length > 1
-            ? el('button', { type: 'button', class: 'btn small', onclick: () => addProposals(remaining) }, `残りの${remaining.length}問をすべて追加`)
-            : null,
-        ),
-      ),
+      errorText ? el('div', { class: 'error-box' }, errorText) : null,
+      proposals.length
+        ? el('div', { class: 'card' },
+          el('div', { class: 'paste-summary-row' },
+            el('p', { class: 'paste-summary' }, `候補 ${proposals.length}問（未追加 ${remaining.length}問）`),
+            el('button', { type: 'button', class: 'btn small', onclick: onClearProposals }, '候補の一覧を消す'),
+          ),
+          el('p', { class: 'hint' }, '問題文を確認し、要点を書いてから追加してください。続きの返答を上に貼り付けて読み込むと、候補がこの下に追加されます。'),
+          el('div', { class: 'proposals' },
+            proposals.map(proposalCard),
+            remaining.length > 1
+              ? el('button', { type: 'button', class: 'btn small', onclick: () => addProposals(remaining) }, `残りの${remaining.length}問をすべて追加`)
+              : null,
+          ),
+        )
+        : null,
     );
   }
 
@@ -211,7 +230,7 @@
     $('#paste-note').addEventListener('input', updatePromptPreview);
     $('#paste-copy').addEventListener('click', onCopy);
     $('#paste-load').addEventListener('click', onLoad);
-    $('#paste-clear').addEventListener('click', onClear);
+    $('#paste-clear').addEventListener('click', onClearInput);
     App.onViewChange((view) => {
       // 一覧などで問題が増減したら「登録済み」の表示を更新する
       if (view === 'ai') render();
