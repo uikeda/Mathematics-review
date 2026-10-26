@@ -80,6 +80,8 @@
       text: typeof p.text === 'string' ? p.text : '',
       source: typeof p.source === 'string' ? p.source : '',
       keypoint: typeof p.keypoint === 'string' ? p.keypoint : '',
+      // 問題の写真（js/image-store.js に保存した写真の ID）
+      images: Array.isArray(p.images) ? p.images.filter((id) => typeof id === 'string' && id) : [],
       status,
       quickCount: status === 'ok' ? quickCount : 0,
       createdAt: typeof p.createdAt === 'string' ? p.createdAt : now,
@@ -97,6 +99,7 @@
       text: fields.text || '',
       source: fields.source || '',
       keypoint: fields.keypoint || '',
+      images: Array.isArray(fields.images) ? fields.images.slice() : [],
       status,
       quickCount: 0,
       createdAt: at,

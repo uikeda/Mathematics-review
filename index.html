@@ -9,6 +9,7 @@
   <script defer src="vendor/katex/katex.min.js"></script>
   <script defer src="vendor/katex/contrib/auto-render.min.js"></script>
   <script defer src="js/logic.js"></script>
+  <script defer src="js/image-store.js"></script>
   <script defer src="js/app.js"></script>
   <script defer src="js/proposal-parser.js"></script>
   <script defer src="js/ai-import.js"></script>
@@ -19,7 +20,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" data-view="review">復習 <span class="badge" id="due-badge" hidden></span></button>
       <button class="tab" role="tab" data-view="list">問題一覧</button>
-      <button class="tab" role="tab" data-view="ai">AIで追加</button>
+      <button class="tab" role="tab" data-view="ai">問題を追加</button>
       <button class="tab" role="tab" data-view="data">データ</button>
     </nav>
   </header>
@@ -53,16 +54,27 @@
       <ul class="problem-list" id="problem-list"></ul>
     </section>
 
-    <!-- 編集（一覧の「編集」と AI の候補の「編集して追加」から開く） -->
+    <!-- 編集（一覧の「編集」と、候補の「編集して追加」から開く） -->
     <section class="view" id="view-form" hidden>
       <h2 id="form-title">問題を編集</h2>
       <form id="problem-form" autocomplete="off">
         <label class="field">
-          <span class="field-label">問題文 <span class="required">必須</span></span>
-          <textarea id="f-text" rows="6" required placeholder="例: $x^2 - 5x + 6 = 0$ を解け。"></textarea>
-          <span class="hint">$…$ で数式（インライン）、$$…$$ で数式（別行）を書けます（KaTeX）。</span>
+          <span class="field-label">問題文</span>
+          <textarea id="f-text" rows="6" placeholder="例: $x^2 - 5x + 6 = 0$ を解け。"></textarea>
+          <span class="hint">$…$ で数式（インライン）、$$…$$ で数式（別行）を書けます（KaTeX）。写真を付けた場合は空でもかまいません。</span>
         </label>
         <div class="preview-box" id="f-text-preview" aria-live="polite"></div>
+
+        <div class="field">
+          <span class="field-label">写真</span>
+          <div class="form-images" id="f-images"></div>
+          <div>
+            <label class="btn small">
+              写真を追加
+              <input type="file" id="f-image-file" accept="image/*" multiple hidden>
+            </label>
+          </div>
+        </div>
 
         <label class="field">
           <span class="field-label">出典</span>
@@ -94,48 +106,74 @@
       </form>
     </section>
 
-    <!-- AI で追加（チャット AI に貼り付け） -->
+    <!-- 問題を追加（チャット AI で書き起こす／写真をそのまま問題にする） -->
     <section class="view" id="view-ai" hidden>
-      <div class="card step">
-        <h3>1. 指示文をコピーして、チャット AI に送る</h3>
-        <ol>
-          <li>必要なら補足を書いて「指示文をコピー」を押す</li>
-          <li>ChatGPT・Claude・Gemini などのチャットを開き、指示文を貼り付ける</li>
-          <li>問題の写真を添付するか、指示文の後に問題の文章を書いて送る</li>
-        </ol>
-        <p>写真を複数枚添付したり、1枚に複数の問題が写っていたりしても、まとめて書き起こせます。</p>
-        <label class="field">
-          <span class="field-label">補足（任意）</span>
-          <input type="text" id="paste-note" placeholder="例: 出典は 青チャート数学I・A 例題12〜14">
-          <span class="hint">出典など AI に伝えたいことを書くと、指示文の最後に加えます。</span>
-        </label>
-        <div class="form-actions">
-          <button type="button" class="btn primary" id="paste-copy">指示文をコピー</button>
-        </div>
-        <details id="paste-prompt-box">
-          <summary>指示文を見る</summary>
-          <pre class="prompt-preview" id="paste-prompt"></pre>
-        </details>
+      <div class="mode-switch" role="tablist" aria-label="追加の方法">
+        <button type="button" class="mode-btn" role="tab" data-method="ai">AI で書き起こす<span class="mode-sub">数式を文字にする</span></button>
+        <button type="button" class="mode-btn" role="tab" data-method="photo">写真をそのまま<span class="mode-sub">写真が問題文になる</span></button>
       </div>
 
-      <div class="card step">
-        <h3>2. AI の返答を貼り付けて読み込む</h3>
-        <p>返答のコードブロックにあるコピーボタンでコピーし、下に貼り付けてください。何回かに分けて貼り付けると、候補が下に追加されていきます。</p>
-        <textarea id="paste-input" rows="8" placeholder="【問題】&#10;…&#10;【出典】&#10;…"></textarea>
-        <div class="form-actions">
-          <button type="button" class="btn primary" id="paste-load">読み込む</button>
-          <button type="button" class="btn" id="paste-clear">入力欄をクリア</button>
+      <div id="method-photo" hidden>
+        <div class="card step">
+          <h3>写真を選ぶ</h3>
+          <p>写真がそのまま問題文になります。書き起こしは不要で、あとから問題文を書き足すこともできます。</p>
+          <label class="check">
+            <input type="checkbox" id="photo-merge">
+            選んだ写真をまとめて1問にする（問題が複数ページにわたるとき）
+          </label>
+          <div class="form-actions">
+            <label class="btn primary">
+              写真を選ぶ
+              <input type="file" id="photo-file" accept="image/*" multiple hidden>
+            </label>
+          </div>
+          <p class="hint">写真はこの端末のブラウザ内に縮小して保存されます（長辺 1600 ピクセル）。</p>
         </div>
+      </div>
+
+      <div id="method-ai" hidden>
+        <div class="card step">
+          <h3>1. 指示文をコピーして、チャット AI に送る</h3>
+          <ol>
+            <li>必要なら補足を書いて「指示文をコピー」を押す</li>
+            <li>ChatGPT・Claude・Gemini などのチャットを開き、指示文を貼り付ける</li>
+            <li>問題の写真を添付するか、指示文の後に問題の文章を書いて送る</li>
+          </ol>
+          <p>写真を複数枚添付したり、1枚に複数の問題が写っていたりしても、まとめて書き起こせます。</p>
+          <label class="field">
+            <span class="field-label">補足（任意）</span>
+            <input type="text" id="paste-note" placeholder="例: 出典は 青チャート数学I・A 例題12〜14">
+            <span class="hint">出典など AI に伝えたいことを書くと、指示文の最後に加えます。</span>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn primary" id="paste-copy">指示文をコピー</button>
+          </div>
+          <details id="paste-prompt-box">
+            <summary>指示文を見る</summary>
+            <pre class="prompt-preview" id="paste-prompt"></pre>
+          </details>
+        </div>
+
+        <div class="card step">
+          <h3>2. AI の返答を貼り付けて読み込む</h3>
+          <p>返答のコードブロックにあるコピーボタンでコピーし、下に貼り付けてください。何回かに分けて貼り付けると、候補が下に追加されていきます。</p>
+          <textarea id="paste-input" rows="8" placeholder="【問題】&#10;…&#10;【出典】&#10;…"></textarea>
+          <div class="form-actions">
+            <button type="button" class="btn primary" id="paste-load">読み込む</button>
+            <button type="button" class="btn" id="paste-clear">入力欄をクリア</button>
+          </div>
+        </div>
+
+        <p class="hint">AI が書き起こした問題文には誤りが含まれることがあります。必ず確認してから追加してください。</p>
       </div>
 
       <div id="paste-result" aria-live="polite"></div>
-      <p class="hint">AI が書き起こした問題文には誤りが含まれることがあります。必ず確認してから追加してください。</p>
     </section>
 
     <!-- データ -->
     <section class="view" id="view-data" hidden>
       <h2>データの保存と復元</h2>
-      <p>データはこのブラウザの中（localStorage）にだけ保存されます。ブラウザのデータを消したり、別の端末で開いたりすると見えなくなるので、定期的に書き出してください。</p>
+      <p>データはこのブラウザの中（問題は localStorage、写真は IndexedDB）にだけ保存されます。ブラウザのデータを消したり、別の端末で開いたりすると見えなくなるので、定期的に書き出してください。</p>
       <div class="form-actions">
         <button type="button" class="btn primary" id="export-btn">JSON に書き出す</button>
         <label class="btn">
@@ -143,7 +181,7 @@
           <input type="file" id="import-file" accept="application/json,.json" hidden>
         </label>
       </div>
-      <p class="muted">読み込むと、現在のデータは読み込んだファイルの内容で置き換わります。</p>
+      <p class="muted">書き出したファイルには写真も含まれます（写真が多いとファイルが大きくなります）。読み込むと、現在のデータは読み込んだファイルの内容で置き換わります。</p>
 
       <h2>復習のルール</h2>
       <table class="rules">

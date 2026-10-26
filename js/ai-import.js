@@ -1,14 +1,17 @@
 /*
- * 「AIで追加」画面
- * 指示文をコピーして手持ちのチャット AI（ChatGPT・Claude・Gemini など）に送り、
- * 返答を貼り付けて登録候補として読み込む。API キーや外部への通信は使わない。
+ * 「問題を追加」画面
+ * - AI で書き起こす: 指示文をコピーして手持ちのチャット AI（ChatGPT・Claude・Gemini など）に送り、
+ *   返答を貼り付けて登録候補として読み込む。API キーや外部への通信は使わない。
+ * - 写真をそのまま: 選んだ写真を問題文の代わりにした登録候補を作る。
  */
 (function () {
   'use strict';
 
   const App = window.MathReviewApp;
-  const { el, mathBlock, toast } = App;
+  const { el, mathBlock, imageGallery, toast } = App;
+  const Images = window.MathReviewImages;
   const $ = (sel) => document.querySelector(sel);
+  const METHOD_KEY = 'math-review.add-method';
 
   const PROMPT = `数学の問題を復習ノートアプリに登録したいので、添付した画像（または下に書いた文章）の問題を、次の形式で書き起こしてください。
 
@@ -86,19 +89,70 @@
     }
     // 何回かに分けて貼り付けられるように、候補は置き換えずに後ろへ足していく。
     // 同じ返答を二度貼ったときのために、問題文が同じ候補は除く
-    const known = new Set(proposals.map((p) => p.fields.text));
+    const known = new Set(proposals.map((p) => p.fields.text).filter(Boolean));
     const fresh = parsed.filter((p) => {
       if (known.has(p.text)) return false;
       known.add(p.text);
       return true;
     });
     // 要点は自分で書く。AI が書いてきても使わない
-    proposals = proposals.concat(fresh.map(({ text, source }) => ({ fields: { text, source, keypoint: '' }, addedId: null })));
+    proposals = proposals.concat(fresh.map(({ text, source }) => newProposal({ text, source })));
     errorText = '';
     $('#paste-input').value = '';
     const skipped = parsed.length - fresh.length;
     toast(`${fresh.length}問を読み込みました${skipped ? `（読み込み済みの${skipped}問は除外）` : ''}`);
     render();
+  }
+
+  function newProposal({ text = '', source = '', images = [] }) {
+    return { fields: { text, source, keypoint: '', images }, addedId: null };
+  }
+
+  // ---------- 写真をそのまま ----------
+
+  async function onPhotoFiles(event) {
+    const files = [...event.target.files].filter((f) => f.type.startsWith('image/'));
+    event.target.value = '';
+    if (!files.length) return;
+    const images = [];
+    for (const file of files) {
+      try {
+        images.push(await Images.fromFile(file));
+      } catch (e) {
+        toast(e.message);
+      }
+    }
+    if (!images.length) return;
+    const fresh = $('#photo-merge').checked
+      ? [newProposal({ images })]
+      : images.map((img) => newProposal({ images: [img] }));
+    proposals = proposals.concat(fresh);
+    errorText = '';
+    toast(`写真から${fresh.length}問の候補を作りました`);
+    render();
+  }
+
+  // ---------- 追加の方法の切り替え ----------
+
+  function loadMethod() {
+    try {
+      return localStorage.getItem(METHOD_KEY) === 'photo' ? 'photo' : 'ai';
+    } catch (e) {
+      return 'ai';
+    }
+  }
+
+  function setMethod(method) {
+    try {
+      localStorage.setItem(METHOD_KEY, method);
+    } catch (e) {
+      /* 次回は既定の方法で開く */
+    }
+    document.querySelectorAll('.mode-btn').forEach((btn) => {
+      btn.setAttribute('aria-selected', String(btn.dataset.method === method));
+    });
+    $('#method-ai').hidden = method !== 'ai';
+    $('#method-photo').hidden = method !== 'photo';
   }
 
   function onClearInput() {
@@ -114,13 +168,26 @@
     render();
   }
 
-  function addProposals(targets) {
+  let adding = false;
+
+  async function addProposals(targets) {
+    if (adding) return;
+    adding = true;
     const fresh = targets.filter((p) => !p.addedId);
-    fresh.forEach((p) => {
-      p.fields = { text: p.fields.text, source: p.fields.source.trim(), keypoint: p.fields.keypoint.trim() };
-      p.addedId = App.addProblem(p.fields).id;
-    });
-    if (fresh.length) toast(fresh.length > 1 ? `${fresh.length}問を追加しました` : '追加しました');
+    let added = 0;
+    try {
+      for (const p of fresh) {
+        p.fields = { ...p.fields, source: p.fields.source.trim(), keypoint: p.fields.keypoint.trim() };
+        p.addedId = (await App.addProblem(p.fields)).id;
+        added++;
+      }
+    } catch (e) {
+      console.error(e);
+      alert('写真を保存できませんでした。ブラウザの保存容量や設定を確認してください。');
+    } finally {
+      adding = false;
+    }
+    if (added) toast(added > 1 ? `${added}問を追加しました` : '追加しました');
     render();
   }
 
@@ -130,7 +197,8 @@
     const f = proposal.fields;
     const duplicate = !proposal.addedId && App.hasProblemText(f.text);
     return el('div', { class: `proposal ${proposal.addedId ? 'added' : ''}` },
-      mathBlock(f.text, 'problem-text'),
+      f.text ? mathBlock(f.text, 'problem-text') : null,
+      f.images.length ? imageGallery(f.images, 'thumbs') : null,
       proposal.addedId ? addedSource(f) : sourceInput(f),
       proposal.addedId ? addedKeypoint(f) : keypointInput(f),
       duplicate ? el('p', { class: 'warn' }, '同じ問題文がすでに登録されています。') : null,
@@ -204,7 +272,8 @@
   function render() {
     const box = $('#paste-result');
     const remaining = proposals.filter((p) => !p.addedId);
-    box.replaceChildren(
+    // replaceChildren は null を「null」という文字として入れてしまうので、el で包んで null を除く
+    box.replaceChildren(el('div', {},
       errorText ? el('div', { class: 'error-box' }, errorText) : null,
       proposals.length
         ? el('div', { class: 'card' },
@@ -212,7 +281,7 @@
             el('p', { class: 'paste-summary' }, `候補 ${proposals.length}問（未追加 ${remaining.length}問）`),
             el('button', { type: 'button', class: 'btn small', onclick: onClearProposals }, '候補の一覧を消す'),
           ),
-          el('p', { class: 'hint' }, '問題文を確認し、要点を書いてから追加してください。続きの返答を上に貼り付けて読み込むと、候補がこの下に追加されます。'),
+          el('p', { class: 'hint' }, '問題文や写真を確認し、要点を書いてから追加してください。続けて読み込んだ返答や選んだ写真は、この下に追加されます。'),
           el('div', { class: 'proposals' },
             proposals.map(proposalCard),
             remaining.length > 1
@@ -221,7 +290,7 @@
           ),
         )
         : null,
-    );
+    ));
   }
 
   // ---------- 初期化 ----------
@@ -231,6 +300,11 @@
     $('#paste-copy').addEventListener('click', onCopy);
     $('#paste-load').addEventListener('click', onLoad);
     $('#paste-clear').addEventListener('click', onClearInput);
+    $('#photo-file').addEventListener('change', onPhotoFiles);
+    document.querySelectorAll('.mode-btn').forEach((btn) => {
+      btn.addEventListener('click', () => setMethod(btn.dataset.method));
+    });
+    setMethod(loadMethod());
     App.onViewChange((view) => {
       // 一覧などで問題が増減したら「登録済み」の表示を更新する
       if (view === 'ai') render();
