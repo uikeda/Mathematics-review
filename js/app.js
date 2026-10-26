@@ -166,7 +166,8 @@
     renderBadge();
     if (currentView === 'review') renderReview();
     if (currentView === 'list') renderList();
-    if (currentView === 'form') renderSourceOptions();
+    // 出典の入力候補は編集フォームと「AIで追加」の候補カードで使う
+    if (currentView === 'form' || currentView === 'ai') renderSourceOptions();
   }
 
   function renderBadge() {
@@ -507,6 +508,7 @@
     problems = problems.concat(p);
     save();
     renderBadge();
+    renderSourceOptions();
     return p;
   }
 

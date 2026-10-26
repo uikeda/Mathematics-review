@@ -97,6 +97,7 @@
   function addProposals(targets) {
     const fresh = targets.filter((p) => !p.addedId);
     fresh.forEach((p) => {
+      p.fields = { text: p.fields.text, source: p.fields.source.trim(), keypoint: p.fields.keypoint.trim() };
       p.addedId = App.addProblem(p.fields).id;
     });
     if (fresh.length) toast(fresh.length > 1 ? `${fresh.length}問を追加しました` : '追加しました');
@@ -110,10 +111,7 @@
     const duplicate = !proposal.addedId && App.hasProblemText(f.text);
     return el('div', { class: `proposal ${proposal.addedId ? 'added' : ''}` },
       mathBlock(f.text, 'problem-text'),
-      el('div', { class: 'proposal-meta' },
-        el('span', { class: 'proposal-label' }, '出典'),
-        f.source ? el('span', {}, f.source) : el('span', { class: 'muted' }, '（なし）'),
-      ),
+      proposal.addedId ? addedSource(f) : sourceInput(f),
       proposal.addedId ? addedKeypoint(f) : keypointInput(f),
       duplicate ? el('p', { class: 'warn' }, '同じ問題文がすでに登録されています。') : null,
       proposal.addedId
@@ -122,6 +120,31 @@
           el('button', { type: 'button', class: 'btn primary small', onclick: () => addProposals([proposal]) }, '追加'),
           el('button', { type: 'button', class: 'btn small', onclick: () => App.openDraft(f, (p) => { proposal.addedId = p.id; }) }, '編集して追加'),
         ),
+    );
+  }
+
+  function addedSource(f) {
+    return el('div', { class: 'proposal-meta' },
+      el('span', { class: 'proposal-label' }, '出典'),
+      f.source ? el('span', {}, f.source) : el('span', { class: 'muted' }, '（なし）'),
+    );
+  }
+
+  // 出典の入力欄（AI が読み取った出典を初期値にし、書き換えた内容を候補に保持する）
+  function sourceInput(f) {
+    const input = el('input', {
+      type: 'text',
+      class: 'source-input',
+      list: 'source-options',
+      placeholder: '例: 青チャート数学I・A 例題12',
+      oninput: (event) => {
+        f.source = event.target.value;
+      },
+    });
+    input.value = f.source;
+    return el('label', { class: 'field proposal-field' },
+      el('span', { class: 'proposal-label' }, '出典'),
+      input,
     );
   }
 
@@ -151,7 +174,7 @@
     });
     input.value = f.keypoint;
     updatePreview();
-    return el('label', { class: 'field keypoint-field' },
+    return el('label', { class: 'field proposal-field' },
       el('span', { class: 'proposal-label' }, '要点（自分で書く・あとからでも可）'),
       input,
       preview,
