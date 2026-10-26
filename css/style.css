@@ -585,11 +585,12 @@ textarea {
   margin: 6px 0 0;
 }
 
-.keypoint-field {
+.proposal-field {
   margin: 10px 0 0;
 }
 
-.keypoint-input {
+.keypoint-input,
+.source-input {
   width: 100%;
 }
 
