@@ -20,13 +20,11 @@
 （問題文）
 【出典】
 （出典）
-【要点】
-（要点）
 
 ## 各項目の書き方
 - 問題文: 原文に忠実に書き起こす。数式は LaTeX で書き、文中は $...$、別行は $$...$$ で囲む。小問は (1) (2) のように改行して並べる。図がある問題は、解くのに必要な図の情報を文章で補う。読み取れない箇所は [判読不能] と書く。
 - 出典: 書名と問題番号、大学名・年度・大問番号など。私が示したものか、画像から読み取れるものだけを書き、推測で作らない。分からなければ空欄にする。
-- 要点: 復習のときに「要点をすぐに答えられるか」を確かめるためのもの。解法の方針や鍵になる発想を1〜2文で書く。最終的な答えの値だけにはしない。`;
+- 解答・解説・ヒントは書かない（要点は自分で書くため）。`;
 
   let proposals = [];
   let errorText = '';
@@ -81,7 +79,8 @@
       return;
     }
     const parsed = window.MathReviewParser.parseProposalText(raw);
-    proposals = parsed.map((fields) => ({ fields, addedId: null }));
+    // 要点は自分で書く。AI が書いてきても使わない
+    proposals = parsed.map(({ text, source }) => ({ fields: { text, source, keypoint: '' }, addedId: null }));
     errorText = parsed.length
       ? ''
       : '問題を読み取れませんでした。AI の返答に【問題】【出典】【要点】の見出しが含まれているか確認してください。';
@@ -115,10 +114,7 @@
         el('span', { class: 'proposal-label' }, '出典'),
         f.source ? el('span', {}, f.source) : el('span', { class: 'muted' }, '（なし）'),
       ),
-      el('div', { class: 'proposal-meta' },
-        el('span', { class: 'proposal-label' }, '要点'),
-        f.keypoint ? mathBlock(f.keypoint) : el('span', { class: 'muted' }, '（なし）'),
-      ),
+      proposal.addedId ? addedKeypoint(f) : keypointInput(f),
       duplicate ? el('p', { class: 'warn' }, '同じ問題文がすでに登録されています。') : null,
       proposal.addedId
         ? el('p', { class: 'added-label' }, '追加しました（未判定）')
@@ -126,6 +122,39 @@
           el('button', { type: 'button', class: 'btn primary small', onclick: () => addProposals([proposal]) }, '追加'),
           el('button', { type: 'button', class: 'btn small', onclick: () => App.openDraft(f, (p) => { proposal.addedId = p.id; }) }, '編集して追加'),
         ),
+    );
+  }
+
+  function addedKeypoint(f) {
+    return el('div', { class: 'proposal-meta' },
+      el('span', { class: 'proposal-label' }, '要点'),
+      f.keypoint ? mathBlock(f.keypoint) : el('span', { class: 'muted' }, '（なし）'),
+    );
+  }
+
+  // 要点の入力欄（入力した内容は候補に保持し、「追加」「すべて追加」「編集して追加」で使う）
+  function keypointInput(f) {
+    const preview = el('div', { class: 'keypoint-preview' });
+    // 数式を含むときだけ表示を確かめられるようにする
+    const updatePreview = () => {
+      preview.hidden = !/\$|\\\(|\\\[/.test(f.keypoint);
+      preview.replaceChildren(mathBlock(f.keypoint));
+    };
+    const input = el('textarea', {
+      class: 'keypoint-input',
+      rows: 2,
+      placeholder: '例: 因数分解 $(x-2)(x-3)=0$ に気づく',
+      oninput: (event) => {
+        f.keypoint = event.target.value;
+        updatePreview();
+      },
+    });
+    input.value = f.keypoint;
+    updatePreview();
+    return el('label', { class: 'field keypoint-field' },
+      el('span', { class: 'proposal-label' }, '要点（自分で書く・あとからでも可）'),
+      input,
+      preview,
     );
   }
 
@@ -142,7 +171,7 @@
     const remaining = proposals.filter((p) => !p.addedId);
     box.replaceChildren(
       el('div', { class: 'card' },
-        el('p', { class: 'paste-summary' }, `${proposals.length}問を読み取りました。内容を確認してから追加してください。`),
+        el('p', { class: 'paste-summary' }, `${proposals.length}問を読み取りました。問題文を確認し、要点を書いてから追加してください。`),
         el('div', { class: 'proposals' },
           proposals.map(proposalCard),
           remaining.length > 1

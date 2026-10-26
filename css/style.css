@@ -584,3 +584,18 @@ textarea {
   font-size: 0.85rem;
   margin: 6px 0 0;
 }
+
+.keypoint-field {
+  margin: 10px 0 0;
+}
+
+.keypoint-input {
+  width: 100%;
+}
+
+.keypoint-preview {
+  font-size: 0.9rem;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
