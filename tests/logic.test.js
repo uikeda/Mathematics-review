@@ -107,4 +107,13 @@ test('normalize は壊れたデータを既定値で補う', () => {
   assert.equal(p.source, '');
   assert.ok(p.id);
   assert.deepEqual(p.history, []);
+  assert.deepEqual(p.images, []);
+  assert.deepEqual(L.normalize({ images: ['img-1', 3, '', 'img-2'] }).images, ['img-1', 'img-2']);
+});
+
+test('写真つきの問題を作れる（問題文は空でもよい）', () => {
+  const p = L.createProblem({ text: '', images: ['img-1', 'img-2'] }, day(1));
+  assert.deepEqual(p.images, ['img-1', 'img-2']);
+  assert.equal(p.text, '');
+  assert.equal(L.isDue(p, day(1)), true);
 });

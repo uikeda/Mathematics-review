@@ -2,6 +2,7 @@
   'use strict';
 
   const L = window.MathReviewLogic;
+  const Images = window.MathReviewImages;
   const STORAGE_KEY = 'math-review.v1';
   const VIEW_KEY = 'math-review.view';
 
@@ -28,6 +29,8 @@
   let editingId = null;
   // 「編集して追加」で開いた AI の候補が追加されたときに呼ぶ
   let draftOnAdded = null;
+  // 編集フォームの写真。保存済みは写真の ID、未保存は { blob, url }
+  let formImages = [];
   const viewListeners = [];
   // 復習画面の状態
   const review = {
@@ -107,6 +110,55 @@
     const node = el('div', { class: `math-text ${cls || ''}` }, text);
     renderMath(node);
     return node;
+  }
+
+  // 写真の表示。items は保存済みの写真の ID か、未保存の写真（{ url }）
+  function imageGallery(items, cls) {
+    return el('div', { class: `problem-images ${cls || ''}` },
+      items.map((item) => {
+        const img = el('img', { alt: '問題の写真' });
+        const link = el('a', { target: '_blank', rel: 'noopener' }, img);
+        const setUrl = (u) => {
+          if (!u) {
+            img.alt = '写真を読み込めませんでした';
+            return;
+          }
+          img.src = u;
+          link.href = u;
+        };
+        if (typeof item === 'string') {
+          Images.url(item).then(setUrl, (e) => {
+            console.error(e);
+            setUrl(null);
+          });
+        } else {
+          setUrl(item.url);
+        }
+        return link;
+      }),
+    );
+  }
+
+  // 問題文と写真
+  function problemBody(p, cls) {
+    return el('div', { class: 'problem-body' },
+      p.text ? mathBlock(p.text, `problem-text ${cls || ''}`) : null,
+      p.images.length ? imageGallery(p.images, cls === 'clamp' ? 'thumbs' : '') : null,
+    );
+  }
+
+  // 未保存の写真を保存し、写真の ID の配列を返す
+  async function saveImages(items) {
+    const ids = [];
+    for (const item of items) {
+      ids.push(typeof item === 'string' ? item : await Images.save(item.blob));
+    }
+    return ids;
+  }
+
+  function problemHead(p) {
+    if (!p.text) return '（写真の問題）';
+    return p.text.length > 40 ? `${p.text.slice(0, 40)}…` : p.text;
   }
 
   function statusBadge(p) {
@@ -269,7 +321,7 @@
         quickProgress(p),
         p.source ? el('span', { class: 'source' }, p.source) : null,
       ),
-      mathBlock(p.text, 'problem-text'),
+      problemBody(p),
       el('p', { class: 'prompt' }, question),
     );
 
@@ -375,7 +427,7 @@
             quickProgress(p),
             p.source ? el('span', { class: 'source' }, p.source) : el('span', { class: 'source muted' }, '出典なし'),
           ),
-          mathBlock(p.text, 'problem-text clamp'),
+          problemBody(p, 'clamp'),
           el('div', { class: 'item-foot' },
             el('span', { class: due ? 'due-label due' : 'due-label' }, dueLabel(p)),
             el('div', { class: 'item-actions' },
@@ -398,10 +450,10 @@
   function removeProblem(id) {
     const p = findProblem(id);
     if (!p) return;
-    const head = p.text.length > 40 ? `${p.text.slice(0, 40)}…` : p.text;
-    if (!confirm(`この問題を削除しますか？\n\n${head}`)) return;
+    if (!confirm(`この問題を削除しますか？\n\n${problemHead(p)}`)) return;
     problems = problems.filter((x) => x.id !== id);
     save();
+    Images.remove(p.images).catch(console.error);
     toast('削除しました');
     render();
   }
@@ -435,6 +487,38 @@
     $('#f-status-hint').textContent = hint;
   }
 
+  function renderFormImages() {
+    $('#f-images').replaceChildren(
+      ...formImages.map((item, i) =>
+        el('div', { class: 'attachment' },
+          imageGallery([item], 'thumbs'),
+          el('button', {
+            type: 'button',
+            class: 'attachment-remove',
+            'aria-label': '写真を外す',
+            onclick: () => {
+              formImages.splice(i, 1);
+              renderFormImages();
+            },
+          }, '×'),
+        ),
+      ),
+    );
+  }
+
+  async function onFormImageFiles(event) {
+    const files = [...event.target.files];
+    event.target.value = '';
+    for (const file of files) {
+      try {
+        formImages.push(await Images.fromFile(file));
+      } catch (e) {
+        toast(e.message);
+      }
+    }
+    renderFormImages();
+  }
+
   function fillForm(p) {
     $('#form-title').textContent = p ? '問題を編集' : 'AI の候補を編集して追加';
     $('#f-submit').textContent = p ? '保存する' : '追加する';
@@ -442,6 +526,8 @@
     $('#f-source').value = p ? p.source : '';
     $('#f-keypoint').value = p ? p.keypoint : '';
     $('#f-status').value = p ? p.status : 'unrated';
+    formImages = p ? p.images.slice() : [];
+    renderFormImages();
     updatePreview();
     updateStatusHint();
   }
@@ -454,7 +540,7 @@
     $('#f-text').focus();
   }
 
-  function submitForm(event) {
+  async function submitForm(event) {
     event.preventDefault();
     const fields = {
       text: $('#f-text').value.trim(),
@@ -462,18 +548,39 @@
       keypoint: $('#f-keypoint').value.trim(),
       status: $('#f-status').value,
     };
-    if (!fields.text) {
+    if (!fields.text && formImages.length === 0) {
+      toast('問題文か写真のどちらかを入れてください');
       $('#f-text').focus();
       return;
+    }
+
+    const submit = $('#f-submit');
+    submit.disabled = true;
+    try {
+      fields.images = await saveImages(formImages);
+    } catch (e) {
+      console.error(e);
+      alert('写真を保存できませんでした。ブラウザの保存容量や設定を確認してください。');
+      return;
+    } finally {
+      submit.disabled = false;
     }
 
     const now = new Date();
     if (editingId) {
       const p = findProblem(editingId);
       if (!p) return;
-      let updated = { ...p, text: fields.text, source: fields.source, keypoint: fields.keypoint, updatedAt: now.toISOString() };
+      let updated = {
+        ...p,
+        text: fields.text,
+        source: fields.source,
+        keypoint: fields.keypoint,
+        images: fields.images,
+        updatedAt: now.toISOString(),
+      };
       updated = L.setStatusManually(updated, fields.status, now);
       replaceProblem(updated);
+      Images.remove(p.images.filter((id) => !fields.images.includes(id))).catch(console.error);
       toast('保存しました');
       editingId = null;
       fillForm(null);
@@ -498,13 +605,16 @@
     $('#f-text').value = fields.text || '';
     $('#f-source').value = fields.source || '';
     $('#f-keypoint').value = fields.keypoint || '';
+    formImages = (fields.images || []).slice();
+    renderFormImages();
     updatePreview();
     showView('form');
     $('#f-text').focus();
   }
 
-  function addProblem(fields) {
-    const p = L.createProblem({ ...fields, status: 'unrated' }, new Date());
+  async function addProblem(fields) {
+    const images = await saveImages(fields.images || []);
+    const p = L.createProblem({ ...fields, images, status: 'unrated' }, new Date());
     problems = problems.concat(p);
     save();
     renderBadge();
@@ -514,6 +624,7 @@
 
   function hasProblemText(text) {
     const t = text.trim();
+    if (!t) return false;
     return problems.some((p) => p.text.trim() === t);
   }
 
@@ -527,8 +638,20 @@
 
   // ---------- データ ----------
 
-  function exportData() {
-    const json = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), problems }, null, 2);
+  async function exportData() {
+    // 写真は data URL にして JSON に含める
+    const images = {};
+    try {
+      for (const id of new Set(problems.flatMap((p) => p.images))) {
+        const blob = await Images.get(id);
+        if (blob) images[id] = await Images.blobToDataUrl(blob);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('写真を書き出せませんでした。');
+      return;
+    }
+    const json = JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), problems, images }, null, 2);
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const a = el('a', { href: url, download: `math-review-${L.toDateKey(new Date())}.json` });
     document.body.append(a);
@@ -542,18 +665,34 @@
     event.target.value = '';
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       let imported;
+      let imageMap;
       try {
         const data = JSON.parse(reader.result);
         const list = Array.isArray(data) ? data : data.problems;
         if (!Array.isArray(list)) throw new Error('problems がありません');
         imported = list.map(L.normalize);
+        imageMap = !Array.isArray(data) && data.images && typeof data.images === 'object' ? data.images : {};
       } catch (e) {
         alert(`読み込めませんでした: ${e.message}`);
         return;
       }
-      if (!confirm(`${imported.length}問を読み込み、現在の${problems.length}問と置き換えます。よろしいですか？`)) return;
+      const used = new Set(imported.flatMap((p) => p.images));
+      const imageEntries = Object.entries(imageMap).filter(
+        ([id, dataUrl]) => used.has(id) && typeof dataUrl === 'string' && dataUrl.startsWith('data:image/'),
+      );
+      const photoNote = imageEntries.length ? `（写真${imageEntries.length}枚）` : '';
+      if (!confirm(`${imported.length}問${photoNote}を読み込み、現在の${problems.length}問と置き換えます。よろしいですか？`)) return;
+      try {
+        const blobs = [];
+        for (const [id, dataUrl] of imageEntries) blobs.push([id, await Images.dataUrlToBlob(dataUrl)]);
+        await Images.replaceAll(blobs);
+      } catch (e) {
+        console.error(e);
+        alert('写真を読み込めませんでした。データは変更していません。');
+        return;
+      }
       problems = imported;
       save();
       review.skipped = [];
@@ -578,6 +717,7 @@
     $('#f-cancel').addEventListener('click', cancelEdit);
     $('#f-text').addEventListener('input', updatePreview);
     $('#f-status').addEventListener('change', updateStatusHint);
+    $('#f-image-file').addEventListener('change', onFormImageFiles);
     $('#export-btn').addEventListener('click', exportData);
     $('#import-file').addEventListener('change', importData);
 
@@ -597,12 +737,25 @@
     }
     fillForm(null);
     showView(initialView);
+    removeOrphanImages();
   }
 
-  // 「AIで追加」画面（js/ai-import.js）から使う
+  // どの問題にも使われていない写真（保存の途中で失敗したときの残りなど）を消す
+  async function removeOrphanImages() {
+    try {
+      const used = new Set(problems.flatMap((p) => p.images));
+      const orphans = (await Images.keys()).filter((id) => !used.has(id));
+      await Images.remove(orphans);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // 「問題を追加」画面（js/ai-import.js）から使う
   window.MathReviewApp = {
     el,
     mathBlock,
+    imageGallery,
     toast,
     addProblem,
     hasProblemText,
